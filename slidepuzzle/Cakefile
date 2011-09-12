@@ -1,0 +1,100 @@
+file  = require './file'
+Board   = require './board'
+stdout  = process.stdout
+stderr  = process.stderr
+
+option "-p", "--puzzle [STRING]",    'puzzle'
+option "-a", "--answer [STRING]",    'answer data'
+option "-I", "--input_file [FILE]",  'input file'
+option "-A", "--answer_file [FILE]", 'answer file'
+option "-D", "--debug",              'debug mode'
+
+solvePuzzle = (key, board) ->
+  stderr.write key + " ..."
+
+  st = new Date()
+  solve = board.search()
+  time = (new Date().getTime() - st.getTime()) / 1000 + " sec."
+
+  if solve?
+    stderr.write " Clear! (#{time})\n"
+    stdout.write "#{key},#{solve.join('')}\n"
+  else
+    stderr.write " Skip! \n"
+    stdout.write "#{key},SKIP\n"
+
+# 解答作成
+task "solve", "solve puzzle", (options) ->
+  if options.puzzle?
+    boardData = options.puzzle.split(",")
+    unless boardData?
+      stferr.write 'invalid puzzle data.\n'
+      prcess.exit(-1)
+    board = new Board(boardData..., options.debug?)
+    board.debug = options.debug?
+    solvePuzzle(options.puzzle, board)
+  else
+    inputFile  = options.input_file ? "./input_data"
+    answerFile = options.answer_file ? "./answer.txt"
+
+    inputData = file.readInputData inputFile
+    [answers, skips] = file.readAnswerData answerFile
+
+    for boardData in inputData.boards
+      key = boardData.join(",")
+      if answers[key]?
+        stderr.write key + " already solved.\n"
+        continue
+      if skips[key]?
+        stderr.write key + " skip.\n"
+        continue
+
+      board = new Board(boardData..., options.debug?)
+      solvePuzzle(key, board)
+
+# 解答チェック
+task "check", "check answer", (options) ->
+  if options.puzzle? and options.answer?
+    boardData = options.puzzle.split(",")
+    board = new Board(boardData..., options.debug)
+    board.check(options.answer)
+
+# 提出データ作成
+task "output", "output result", (options) ->
+  inputFile  = options.input_file ? "./input_data.orig"
+  answerFile = options.answer_file ? "./answer.txt"
+
+  inputData = file.readInputData inputFile
+  [answers] = file.readAnswerData answerFile
+
+  for boardData in inputData.boards
+    key = boardData.join(",")
+    if answers[key]?
+      stdout.write answers[key] + "\n"
+    else
+      stdout.write "\n"
+
+# 解答状況表示
+task "stat", "stat", (options) ->
+  counts = { U: 0, D: 0, L: 0, R: 0 }
+
+  inputFile  = options.input_file ? "./input_data.orig"
+  answerFile = options.answer_file ? "./answer.txt"
+
+  inputData = file.readInputData inputFile
+  [answers]  = file.readAnswerData answerFile
+
+  answerCount = 0
+  for key, answer of answers
+    answerCount +=1
+    for index in [0..answer.length-1]
+      c = answer.charAt(index)
+      counts[c] += 1
+
+  percent = Math.floor(answerCount/inputData.total * 1000) / 10
+  console.log "solved #{answerCount}/#{inputData.total} (#{percent}%)"
+
+  rest = inputData.rest
+  for key, count of counts
+    percent = Math.floor(count/rest[key] * 1000) / 10
+    console.log "#{key} : #{count}/#{rest[key]} (#{percent}%)"
